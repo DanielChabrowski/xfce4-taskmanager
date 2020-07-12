@@ -475,19 +475,6 @@ monitor_update_core_step_size(GtkWidget *widget, gpointer refresh_rate)
 }
 
 static void
-url_hook_about_dialog (GtkAboutDialog *dialog, const gchar *uri, gpointer user_data)
-{
-	gchar *command = g_strdup_printf ("exo-open %s", uri);
-	if (!g_spawn_command_line_async (command, NULL))
-	{
-		g_free (command);
-		command = g_strdup_printf ("firefox %s", uri);
-		g_spawn_command_line_async (command, NULL);
-	}
-	g_free (command);
-}
-
-static void
 show_about_dialog (XtmProcessWindow *window)
 {
 	const gchar *authors[] = {
