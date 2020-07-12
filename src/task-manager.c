@@ -56,6 +56,7 @@ struct _XtmTaskManager
 #endif
 	GtkTreeModel *		model;
 	GArray *		tasks;
+    GArray *		cpu_info;
 	gushort			cpu_count;
 	gfloat			cpu_user;
 	gfloat			cpu_system;
@@ -95,6 +96,7 @@ xtm_task_manager_init (XtmTaskManager *manager)
 	manager->app_manager = xtm_app_manager_new ();
 #endif
 	manager->tasks = g_array_new (FALSE, FALSE, sizeof (Task));
+	manager->cpu_info = g_array_new (FALSE, FALSE, sizeof (CpuCoreInfo));
 
 	/* Listen to settings changes and force an update on the whole model */
 	settings = xtm_settings_get_default ();
@@ -109,6 +111,7 @@ xtm_task_manager_finalize (GObject *object)
 {
 	XtmTaskManager *manager = XTM_TASK_MANAGER (object);
 	g_array_free (manager->tasks, TRUE);
+    g_array_free (manager->cpu_info, TRUE);
 #ifdef HAVE_WNCK
 	g_object_unref (manager->app_manager);
 #endif
@@ -379,7 +382,7 @@ xtm_task_manager_get_system_info (XtmTaskManager *manager, guint *num_processes,
 	*swap_total = manager->swap_total;
 
 	/* Set CPU usage */
-	get_cpu_usage (&manager->cpu_count, &manager->cpu_user, &manager->cpu_system);
+	get_cpu_usage (&manager->cpu_count, &manager->cpu_user, &manager->cpu_system, manager->cpu_info);
 	*cpu = manager->cpu_user + manager->cpu_system;
 }
 
@@ -506,6 +509,11 @@ xtm_task_manager_update_model (XtmTaskManager *manager)
 	return;
 }
 
+const GArray *
+xtm_task_manager_get_cpu_info (XtmTaskManager *manager)
+{
+    return manager->cpu_info;
+}
 
 gchar *
 get_uid_name (guint uid)

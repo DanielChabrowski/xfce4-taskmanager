@@ -119,7 +119,8 @@ init_timeout (void)
 	g_free(used);
 	g_free(total);
 
-	xtm_process_window_set_system_info (XTM_PROCESS_WINDOW (window), num_processes, cpu, memory_percent, memory_info, swap_percent, swap_info);
+	xtm_process_window_set_system_info (XTM_PROCESS_WINDOW (window), num_processes, cpu, memory_percent, memory_info, swap_info);
+	xtm_process_window_show_cores_usage (XTM_PROCESS_WINDOW (window), xtm_task_manager_get_cpu_info (task_manager));
 
 	xtm_task_manager_get_swap_usage (task_manager, &swap_free, &swap_total);
 	xtm_process_window_show_swap_usage (XTM_PROCESS_WINDOW (window), (swap_total > 0));

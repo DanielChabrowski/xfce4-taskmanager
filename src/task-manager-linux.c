@@ -61,7 +61,7 @@ get_memory_usage (guint64 *memory_total, guint64 *memory_free, guint64 *memory_c
 }
 
 gboolean
-get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system)
+get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system, GArray *cpu_info)
 {
 	FILE *file;
 	gchar *filename = "/proc/stat";
@@ -69,30 +69,18 @@ get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system)
 	static gulong jiffies_user = 0, jiffies_system = 0, jiffies_total = 0;
 	static gulong jiffies_user_old = 0, jiffies_system_old = 0, jiffies_total_old = 0;
 	gulong user = 0, user_nice = 0, system = 0, idle = 0;
+    guint cpu_id = 0;
+    gushort cpus_count = 0;
 
 	if ((file = fopen (filename, "r")) == NULL)
 		return FALSE;
-	if (fgets (buffer, sizeof(buffer), file) == NULL)
-	{
+
+	if (fgets (buffer, sizeof(buffer), file) == NULL) {
 		fclose (file);
 		return FALSE;
-	}
+    }
 
-	sscanf (buffer, "cpu\t%lu %lu %lu %lu", &user, &user_nice, &system, &idle);
-
-	if (_cpu_count == 0)
-	{
-		while (fgets (buffer, sizeof(buffer), file) != NULL)
-		{
-			if (buffer[0] != 'c' && buffer[1] != 'p' && buffer[2] != 'u')
-				break;
-			_cpu_count += 1;
-		}
-		if (_cpu_count == 0)
-			_cpu_count = 1;
-	}
-
-	fclose (file);
+	sscanf(buffer, "cpu\t%lu %lu %lu %lu", &user, &user_nice, &system, &idle);
 
 	jiffies_user_old = jiffies_user;
 	jiffies_system_old = jiffies_system;
@@ -109,6 +97,56 @@ get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system)
 		*cpu_user = (((jiffies_user - jiffies_user_old) * 100.0f) / (float)jiffies_total_delta);
 		*cpu_system = (((jiffies_system - jiffies_system_old) * 100.0f) / (float)jiffies_total_delta);
 	}
+
+	while (fgets (buffer, sizeof(buffer), file) != NULL)
+	{
+		if (buffer[0] != 'c' && buffer[1] != 'p' && buffer[2] != 'u')
+			break;
+
+		sscanf (buffer, "cpu%u %lu %lu %lu %lu", &cpu_id, &user, &user_nice, &system, &idle);
+
+		if (cpu_info->len <= cpus_count)
+		{
+			CpuCoreInfo core_info;
+			core_info.cpu_id = cpu_id;
+			core_info.cpu_user = 0.0f;
+			core_info.cpu_system = 0.0f;
+			core_info.jiffies_user = user + user_nice;
+			core_info.jiffies_system = system;
+			core_info.jiffies_total = core_info.jiffies_user + core_info.jiffies_system + idle;
+			g_array_append_val (cpu_info, core_info);
+		}
+		else
+		{
+			CpuCoreInfo *core_info = &g_array_index (cpu_info, CpuCoreInfo, cpus_count);
+			jiffies_user_old = core_info->jiffies_user;
+			jiffies_system_old = core_info->jiffies_system;
+			jiffies_total_old = core_info->jiffies_total;
+
+			core_info->jiffies_user = user + user_nice;
+			core_info->jiffies_system = system;
+			core_info->jiffies_total = core_info->jiffies_user + core_info->jiffies_system + idle;
+
+			core_info->cpu_user = core_info->cpu_system = 0.0f;
+
+			if (core_info->jiffies_total > jiffies_total_old)
+			{
+				jiffies_total_delta = core_info->jiffies_total - jiffies_total_old;
+				core_info->cpu_user = (((core_info->jiffies_user - jiffies_user_old) * 100.0f) / (float)jiffies_total_delta);
+				core_info->cpu_system = (((core_info->jiffies_system - jiffies_system_old) * 100.0f) / (float)jiffies_total_delta);
+			}
+		}
+
+		cpus_count += 1;
+	}
+
+	fclose (file);
+
+	if (_cpu_count == 0)
+	{
+		_cpu_count = cpus_count == 0 ? 1 : cpus_count;
+	}
+
 	*cpu_count = _cpu_count;
 
 	return TRUE;

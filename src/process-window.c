@@ -53,6 +53,8 @@ struct _XtmProcessWindow
 	GtkWidget *		window;
 	GtkWidget *		toolbar;
 	GtkWidget *		filter_entry;
+	GtkWidget *		cpu_stack;
+	GtkWidget *		core_monitors;
 	GtkWidget *		cpu_monitor;
 	GtkWidget *		mem_monitor;
 	GtkWidget *		vpaned;
@@ -74,7 +76,8 @@ static gboolean xtm_process_window_key_pressed	(XtmProcessWindow *window, GdkEve
 static void	toolbar_update_style				(XtmProcessWindow *window);
 static void	monitor_update_step_size			(XtmProcessWindow *window);
 static void	show_about_dialog				(XtmProcessWindow *window);
-
+static void monitor_update_core_step_size	(GtkWidget *widget, gpointer);
+static void graph_cpu_stack_button_pressed	(XtmProcessWindow *window, GdkEventButton *event, gpointer data);
 
 static void
 filter_entry_icon_pressed_cb (GtkEntry *entry,
@@ -299,7 +302,14 @@ xtm_process_window_init (XtmProcessWindow *window)
 		g_signal_connect_swapped (window->settings, "notify::refresh-rate", G_CALLBACK (monitor_update_step_size), window);
 	}
 
-	window->statusbar = xtm_process_statusbar_new ();
+	window->core_monitors = GTK_WIDGET (gtk_builder_get_object (window->builder, "graph-cores"));
+
+	{
+		window->cpu_stack = GTK_WIDGET (gtk_builder_get_object (window->builder, "graph-cpu-stack"));
+		g_signal_connect_swapped (window->cpu_stack, "button-press-event", G_CALLBACK (graph_cpu_stack_button_pressed), window);
+	}
+
+    window->statusbar = xtm_process_statusbar_new ();
 	gtk_widget_show (window->statusbar);
 	gtk_box_pack_start (GTK_BOX (gtk_builder_get_object (window->builder, "graph-vbox")), window->statusbar, FALSE, FALSE, 0);
 
@@ -454,6 +464,14 @@ monitor_update_step_size (XtmProcessWindow *window)
 	g_object_get (window->settings, "refresh-rate", &refresh_rate, NULL);
 	g_object_set (window->cpu_monitor, "step-size", refresh_rate / 1000.0, NULL);
 	g_object_set (window->mem_monitor, "step-size", refresh_rate / 1000.0, NULL);
+
+	gtk_container_foreach (GTK_CONTAINER (window->core_monitors), &monitor_update_core_step_size, GUINT_TO_POINTER (refresh_rate));
+}
+
+static void
+monitor_update_core_step_size(GtkWidget *widget, gpointer refresh_rate)
+{
+	g_object_set (gtk_bin_get_child (GTK_BIN (widget)), "step-size", GPOINTER_TO_UINT (refresh_rate) / 1000.0, NULL);
 }
 
 static void
@@ -561,7 +579,7 @@ xtm_process_window_get_model (XtmProcessWindow *window)
 }
 
 void
-xtm_process_window_set_system_info (XtmProcessWindow *window, guint num_processes, gfloat cpu, gfloat memory, gchar* memory_str, gfloat swap __unused, gchar* swap_str)
+xtm_process_window_set_system_info (XtmProcessWindow *window, guint num_processes, gfloat cpu, gfloat memory, gchar* memory_str, gchar* swap_str)
 {
 	gchar text[100];
 	gchar value[4];
@@ -582,9 +600,75 @@ xtm_process_window_set_system_info (XtmProcessWindow *window, guint num_processe
 }
 
 void
+xtm_process_window_show_cores_usage (XtmProcessWindow *window, const GArray *cpu_info)
+{
+	static guint cpu_widgets_added = 0;
+	GtkWidget *cpu_widget = NULL;
+	gchar buffer[32];
+	guint refresh_rate;
+
+	g_return_if_fail (XTM_IS_PROCESS_WINDOW (window));
+
+	g_object_get (window->settings, "refresh-rate", &refresh_rate, NULL);
+
+	if (cpu_widgets_added == 0)
+	{
+		const guint max_per_line = cpu_info->len > 8 ? 8 : cpu_info->len;
+		gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(window->core_monitors), max_per_line);
+	}
+
+	for (guint i = 0; i < cpu_info->len; i++)
+	{
+		const CpuCoreInfo *core_info = &g_array_index (cpu_info, CpuCoreInfo, i);
+
+		if (cpu_widgets_added < cpu_info->len)
+		{
+			cpu_widget = xtm_process_monitor_new();
+
+			xtm_process_monitor_set_step_size(XTM_PROCESS_MONITOR(cpu_widget),
+                                              refresh_rate / 1000.0f);
+			xtm_process_monitor_set_type(XTM_PROCESS_MONITOR(cpu_widget), 2);
+			gtk_widget_show(cpu_widget);
+
+			g_snprintf(buffer, sizeof(buffer), _("CPU %u"), core_info->cpu_id);
+			gtk_widget_set_tooltip_text(cpu_widget, buffer);
+
+			gtk_container_add(GTK_CONTAINER(window->core_monitors), cpu_widget);
+
+			++cpu_widgets_added;
+		}
+		else
+		{
+			cpu_widget = gtk_bin_get_child (GTK_BIN (gtk_flow_box_get_child_at_index (GTK_FLOW_BOX (window->core_monitors), i)));
+		}
+
+		xtm_process_monitor_add_peak (XTM_PROCESS_MONITOR (cpu_widget), (core_info->cpu_user + core_info->cpu_system) / 100.0f);
+    }
+}
+
+void
 xtm_process_window_show_swap_usage (XtmProcessWindow *window, gboolean show_swap_usage)
 {
 	g_return_if_fail (XTM_IS_PROCESS_WINDOW (window));
 	g_return_if_fail (GTK_IS_BOX (window->statusbar));
 	g_object_set (window->statusbar, "show-swap", show_swap_usage, NULL);
+}
+
+static void
+graph_cpu_stack_button_pressed (XtmProcessWindow *window, GdkEventButton *event, gpointer data)
+{
+	GtkWidget *current_widget;
+
+	g_return_if_fail (XTM_IS_PROCESS_WINDOW (window));
+
+	current_widget = gtk_stack_get_visible_child (GTK_STACK (window->cpu_stack));
+	if (current_widget == window->core_monitors)
+	{
+		GtkWidget *graph_cpu = GTK_WIDGET (gtk_builder_get_object (window->builder, "graph-cpu"));
+		gtk_stack_set_visible_child (GTK_STACK (window->cpu_stack), graph_cpu);
+	}
+	else
+	{
+		gtk_stack_set_visible_child (GTK_STACK (window->cpu_stack), window->core_monitors);
+	}
 }

@@ -38,11 +38,27 @@ struct _Task
 };
 
 /**
+ * Information needed to calculate CPU usage per core.
+ */
+
+typedef struct _CpuCoreInfo CpuCoreInfo;
+struct _CpuCoreInfo
+{
+    guint cpu_id;
+    gfloat cpu_user;
+    gfloat cpu_system;
+    /*<private>*/
+    gulong jiffies_user;
+    gulong jiffies_system;
+    gulong jiffies_total;
+};
+
+/**
  * OS specific implementation.
  */
 
 gboolean	get_memory_usage	(guint64 *memory_total, guint64 *memory_free, guint64 *memory_cache, guint64 *memory_buffers, guint64 *swap_total, guint64 *swap_free);
-gboolean	get_cpu_usage		(gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system);
+gboolean	get_cpu_usage		(gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system, GArray *cpu_info);
 gboolean	get_task_list		(GArray *task_list);
 gboolean	pid_is_sleeping		(GPid pid);
 
@@ -67,6 +83,8 @@ void			xtm_task_manager_get_system_info		(XtmTaskManager *manager, guint *num_pr
 void			xtm_task_manager_get_swap_usage			(XtmTaskManager *manager, guint64 *swap_free, guint64 *swap_total);
 const GArray *		xtm_task_manager_get_task_list			(XtmTaskManager *manager);
 void			xtm_task_manager_update_model			(XtmTaskManager *manager);
+
+const GArray *		xtm_task_manager_get_cpu_info			(XtmTaskManager *manager);
 
 /**
  * Helper functions.
