@@ -121,7 +121,7 @@ get_cpu_percent (GPid pid, gulong ticks_user, gfloat *cpu_user, gulong ticks_sys
 }
 
 gboolean
-get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system)
+get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system, GArray *cpu_info)
 {
 	kstat_t *ksp;
 	kstat_named_t *knp;
@@ -251,4 +251,3 @@ pid_is_sleeping (GPid pid)
 
 	return (state[0] == 'T') ? TRUE : FALSE;
 }
-

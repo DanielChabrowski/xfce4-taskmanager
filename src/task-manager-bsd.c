@@ -185,7 +185,7 @@ pid_is_sleeping (GPid pid)
 	return (kp.p_stat == SSTOP ? TRUE : FALSE);
 }
 
-gboolean get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system)
+gboolean get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system, GArray *cpu_info)
 {
 	static gulong cur_user = 0, cur_system = 0, cur_total = 0;
 	static gulong old_user = 0, old_system = 0, old_total = 0;
@@ -276,4 +276,3 @@ gboolean get_memory_usage (guint64 *memory_total, guint64 *memory_free, guint64 
 	free(swdev);
 	return TRUE;
 }
-

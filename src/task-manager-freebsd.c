@@ -93,7 +93,7 @@ get_memory_usage (guint64 *memory_total, guint64 *memory_free, guint64 *memory_c
 }
 
 gboolean
-get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system)
+get_cpu_usage (gushort *cpu_count, gfloat *cpu_user, gfloat *cpu_system, GArray *cpu_info)
 {
 	/* Get CPU count */
 	{
